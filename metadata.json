@@ -1,0 +1,9 @@
+{
+  "name": "Remix: Remix: Vivere Construction | Premium Design-Build 101",
+  "description": "High-end luxury construction and design firm specializing in premium residential projects and fire recovery in California.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}

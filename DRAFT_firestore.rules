@@ -1,0 +1,102 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Primitives ---
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isSignedIn() { return request.auth != null; }
+    function isAdmin() {
+      // Allow the specific user email to act as an admin for bootstrapping
+      return isSignedIn() && (request.auth.token.email == 'mdabdullahislamrafid552@gmail.com' || exists(/databases/$(database)/documents/admins/$(request.auth.uid)));
+    }
+
+    // --- Entity Validators ---
+    function isValidProject(data) {
+      return data.keys().hasAll(["title", "category", "images", "createdAt"])
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 200
+        && data.category is string && data.category.size() <= 100
+        && data.images is list && data.images.size() <= 50
+        && (data.images.size() == 0 || data.images[0] is string)
+        && data.createdAt is timestamp
+        && data.get('description', '') is string && data.get('description', '').size() <= 50000
+        && data.get('client', '') is string && data.get('client', '').size() <= 200
+        && data.get('year', '') is string && data.get('year', '').size() <= 10
+        && data.get('featured', false) is bool
+        && data.get('updatedAt', request.time) is timestamp;
+    }
+
+    function isValidService(data) {
+      return data.keys().hasAll(["title", "description", "image", "createdAt"])
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 200
+        && data.description is string && data.description.size() > 0 && data.description.size() <= 5000
+        && data.image is string && data.image.size() <= 1000
+        && data.createdAt is timestamp
+        && data.get('price', '') is string && data.get('price', '').size() <= 100
+        && data.get('iconName', '') is string && data.get('iconName', '').size() <= 100
+        && data.get('order', 0) is number
+        && data.get('updatedAt', request.time) is timestamp;
+    }
+
+    function isValidMessage(data) {
+      return data.keys().hasAll(["name", "email", "message", "createdAt"])
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 200
+        && data.email is string && data.email.size() > 0 && data.email.size() <= 200
+        && data.message is string && data.message.size() > 0 && data.message.size() <= 10000
+        && data.createdAt is timestamp
+        && data.get('phone', '') is string && data.get('phone', '').size() <= 50
+        && data.get('status', 'unread') is string && data.get('status', 'unread').matches('^(unread|read|archived)$');
+    }
+
+    // --- Collections ---
+
+    match /admins/{userId} {
+      allow get: if isAdmin();
+      allow list: if isAdmin();
+      allow create, update, delete: if false; // System managed or manually managed via console
+    }
+
+    match /projects/{projectId} {
+      allow get: if isValidId(projectId) && true;
+      allow list: if true;
+      allow create: if isValidId(projectId) && isAdmin() 
+                    && isValidProject(incoming()) 
+                    && incoming().createdAt == request.time;
+      allow update: if isValidId(projectId) && isAdmin() 
+                    && isValidProject(incoming()) 
+                    && incoming().createdAt == existing().createdAt;
+      allow delete: if isValidId(projectId) && isAdmin();
+    }
+
+    match /services/{serviceId} {
+      allow get: if isValidId(serviceId) && true;
+      allow list: if true;
+      allow create: if isValidId(serviceId) && isAdmin() 
+                    && isValidService(incoming()) 
+                    && incoming().createdAt == request.time;
+      allow update: if isValidId(serviceId) && isAdmin() 
+                    && isValidService(incoming()) 
+                    && incoming().createdAt == existing().createdAt;
+      allow delete: if isValidId(serviceId) && isAdmin();
+    }
+
+    match /messages/{messageId} {
+      allow get: if isValidId(messageId) && isAdmin();
+      allow list: if isAdmin();
+      allow create: if isValidId(messageId) && isValidMessage(incoming()) 
+                    && incoming().createdAt == request.time;
+      allow update: if isValidId(messageId) && isAdmin() 
+                    && isValidMessage(incoming()) 
+                    && incoming().createdAt == existing().createdAt;
+      allow delete: if isValidId(messageId) && isAdmin();
+    }
+  }
+}

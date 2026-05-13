@@ -1,0 +1,113 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isSignedIn() { return request.auth != null; }
+    function isAdmin() { 
+      return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)); 
+    }
+    
+    function isValidId(id) { 
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
+    }
+
+    // Projects
+    function isValidProjectCreate(data) {
+      return data.keys().hasAll(['title', 'category', 'images', 'createdAt']) &&
+             data.keys().size() <= 9 &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+             data.category is string && data.category.size() > 0 && data.category.size() <= 100 &&
+             data.images is list && data.images.size() <= 50 &&
+             (data.images.size() == 0 || data.images[0] is string) &&
+             data.createdAt == request.time &&
+             data.get('description', '') is string && data.get('description', '').size() <= 10000 &&
+             data.get('client', '') is string && data.get('client', '').size() <= 200 &&
+             data.get('year', '') is string && data.get('year', '').size() <= 4 &&
+             data.get('featured', false) is bool &&
+             data.get('updatedAt', request.time) == request.time;
+    }
+    
+    function isValidProjectUpdate(data) {
+       return data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+             data.category is string && data.category.size() > 0 && data.category.size() <= 100 &&
+             data.images is list && data.images.size() <= 50 &&
+             (data.images.size() == 0 || data.images[0] is string) &&
+             data.get('description', '') is string && data.get('description', '').size() <= 10000 &&
+             data.get('client', '') is string && data.get('client', '').size() <= 200 &&
+             data.get('year', '') is string && data.get('year', '').size() <= 4 &&
+             data.get('featured', false) is bool &&
+             data.updatedAt == request.time;
+    }
+
+    match /projects/{projectId} {
+      allow list: if true;
+      allow get: if isValidId(projectId);
+      allow create: if isAdmin() && isValidId(projectId) && isValidProjectCreate(incoming());
+      allow update: if isAdmin() && isValidId(projectId) && isValidProjectUpdate(incoming()) && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'category', 'images', 'description', 'client', 'year', 'featured', 'updatedAt']);
+      allow delete: if isAdmin() && isValidId(projectId);
+    }
+    
+    // Services
+    function isValidServiceCreate(data) {
+       return data.keys().hasAll(['title', 'description', 'image']) &&
+              data.keys().size() <= 6 &&
+              data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+              data.description is string && data.description.size() <= 2000 &&
+              data.image is string && data.image.size() <= 500 &&
+              data.get('price', '') is string && data.get('price', '').size() <= 100 &&
+              data.get('iconName', '') is string && data.get('iconName', '').size() <= 100 &&
+              (data.get('order', 0) is number);
+    }
+
+    function isValidServiceUpdate(data) {
+       return data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+              data.description is string && data.description.size() <= 2000 &&
+              data.image is string && data.image.size() <= 500 &&
+              data.get('price', '') is string && data.get('price', '').size() <= 100 &&
+              data.get('iconName', '') is string && data.get('iconName', '').size() <= 100 &&
+              (data.get('order', 0) is number);
+    }
+    
+    match /services/{serviceId} {
+      allow list: if true;
+      allow get: if isValidId(serviceId);
+      allow create: if isAdmin() && isValidId(serviceId) && isValidServiceCreate(incoming());
+      allow update: if isAdmin() && isValidId(serviceId) && isValidServiceUpdate(incoming()) && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'image', 'price', 'iconName', 'order']);
+      allow delete: if isAdmin() && isValidId(serviceId);
+    }
+    
+    // Messages
+    function isValidInboxMessage(data) {
+      return data.keys().hasAll(['name', 'email', 'message', 'createdAt']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
+             data.email is string && data.email.size() > 0 && data.email.size() <= 200 &&
+             data.message is string && data.message.size() > 0 && data.message.size() <= 5000 &&
+             data.createdAt == request.time &&
+             data.get('status', 'unread') is string && data.get('status', 'unread').matches('^(unread|read|archived)$') &&
+             data.get('phone', '') is string && data.get('phone', '').size() <= 50 &&
+             data.keys().size() <= 6;
+    }
+    
+    function isValidInboxMessageUpdate(ext, inc) {
+      return inc.status is string && inc.status.matches('^(unread|read|archived)$') &&
+             inc.name == ext.name && inc.email == ext.email && inc.message == ext.message && inc.createdAt == ext.createdAt && inc.get('phone', '') == ext.get('phone', '');
+    }
+
+    match /messages/{messageId} {
+      allow read: if isAdmin();
+      allow create: if isValidId(messageId) && isValidInboxMessage(incoming());
+      allow update: if isAdmin() && isValidId(messageId) && incoming().diff(existing()).affectedKeys().hasOnly(['status']) && isValidInboxMessageUpdate(existing(), incoming());
+      allow delete: if isAdmin() && isValidId(messageId);
+    }
+    
+    match /admins/{userId} {
+      allow read: if isSignedIn() && request.auth.uid == userId;
+      allow create, update, delete: if false; // Managed externally
+    }
+  }
+}

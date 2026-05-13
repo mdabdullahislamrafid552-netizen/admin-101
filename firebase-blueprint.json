@@ -1,0 +1,74 @@
+{
+  "entities": {
+    "Project": {
+      "title": "Construction Project",
+      "description": "Details about a completed or ongoing construction project",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Name of the project" },
+        "description": { "type": "string", "description": "Full description of work done" },
+        "category": { "type": "string", "description": "e.g., New Build, Renovation, ADU" },
+        "client": { "type": "string", "description": "Client name or type" },
+        "year": { "type": "string", "description": "Completion year" },
+        "images": { "type": "array", "description": "List of image URLs" },
+        "featured": { "type": "boolean", "description": "Whether to highlight on homepage" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "category", "images", "createdAt"]
+    },
+    "Service": {
+      "title": "Business Service",
+      "description": "Services offered by Vivere Construction",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "image": { "type": "string" },
+        "price": { "type": "string" },
+        "iconName": { "type": "string", "description": "Lucide icon key" },
+        "order": { "type": "number" }
+      },
+      "required": ["title", "description", "image"]
+    },
+    "InboxMessage": {
+      "title": "Contact Form Submission",
+      "description": "Message received from the public contact form",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "message": { "type": "string" },
+        "status": { "type": "string", "enum": ["unread", "read", "archived"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "email", "message", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/projects/{projectId}": {
+      "schema": "Project",
+      "description": "Collection of construction projects"
+    },
+    "/services/{serviceId}": {
+      "schema": "Service",
+      "description": "Collection of offered services"
+    },
+    "/messages/{messageId}": {
+      "schema": "InboxMessage",
+      "description": "Public messages for the admin"
+    },
+    "/admins/{userId}": {
+      "schema": {
+        "title": "Admin Record",
+        "type": "object",
+        "properties": {
+          "email": { "type": "string" },
+          "role": { "type": "string", "enum": ["admin"] }
+        }
+      },
+      "description": "Authorized admin users"
+    }
+  }
+}
